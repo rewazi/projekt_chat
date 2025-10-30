@@ -1,6 +1,7 @@
 <?php
+header('Content-Type: text/html; charset=utf-8');
 require __DIR__ . '/vendor/autoload.php';
-
+mb_internal_encoding("UTF-8");
 use Ratchet\MessageComponentInterface;
 use Ratchet\ConnectionInterface;
 use MariaDb\Connector\Connection;
@@ -8,11 +9,18 @@ use MariaDb\Connector\Connection;
 class ChatServer implements MessageComponentInterface {
     protected $clients;
     protected $db;
+    protected $requestTimestamps = [];
+    protected $rateLimit = 5; 
+    protected $rateWindow = 1; 
+
     public function __construct() {
         $this->clients = new \SplObjectStorage;
 
         $this->db = new mysqli("localhost", "root", "", "projekt");
         echo "WebSocket запущен!\n";
+
+        $this->db->set_charset("utf8");
+
 }
 
 
@@ -34,6 +42,29 @@ public function onOpen(ConnectionInterface $conn){
     } 
 
     public function onMessage(ConnectionInterface $from, $msg) {
+      $id = $from->resourceId;
+      $now = microtime(true);
+      if (!isset($this->requestTimestamps[$id])) {
+        $this->requestTimestamps[$id] = [];
+    }
+    $this->requestTimestamps[$id] = array_filter(
+        $this->requestTimestamps[$id],
+        fn($timestamp) => ($now - $timestamp) < $this->rateWindow
+    );
+
+
+    if (count($this->requestTimestamps[$id]) >= $this->rateLimit) {
+        echo "Rate limit exceeded for connection {$id}\n";
+        $from->send(json_encode([
+            "type" => "error",
+            "message" => "Слишком много запросов. Подождите немного."
+        ]));
+        return;
+    }
+
+
+    $this->requestTimestamps[$id][] = $now;
+  
  $data = json_decode($msg, true);
        $push = $this->db->prepare("INSERT INTO chat_test (username, message) VALUES (?, ?)");
        $push->bind_param("ss", $data["username"], $data["message"]);
