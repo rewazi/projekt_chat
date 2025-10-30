@@ -1,40 +1,78 @@
 <?php
+require __DIR__ . '/vendor/autoload.php';
 
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET, POST, OPTIONS"); 
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
+use Ratchet\MessageComponentInterface;
+use Ratchet\ConnectionInterface;
+use MariaDb\Connector\Connection;
 
+class ChatServer implements MessageComponentInterface {
+    protected $clients;
+    protected $db;
+    public function __construct() {
+        $this->clients = new \SplObjectStorage;
 
-  $servername = "localhost";
-  $username = "root";
-  $password = "";
-  $databasename = "projekt";
-
-  // CREATE CONNECTION
-  $conn = new mysqli($servername,
-    $username, $password, $databasename);
-
-  // GET CONNECTION ERRORS
-  if ($conn->connect_error) {
-  http_response_code(500);
-  echo json_encode(["error" => "Connection failed: " . $conn->connect_error]);
-  exit();
+        $this->db = new mysqli("localhost", "root", "", "projekt");
+        echo "WebSocket запущен!\n";
 }
 
-$sql = "SELECT * FROM chat_test";
-$result = $conn->query($sql);
 
-$data = [];
+public function onOpen(ConnectionInterface $conn){
+     $this->clients->attach($conn);
+    echo "New connection! ({$conn->resourceId})\n";
 
-if ($result && $result->num_rows > 0) {
-  while($row = $result->fetch_assoc()) {
-    $data[] = $row;
+    $load = $this->db->query("SELECT username, message, created_at FROM chat_test ORDER BY id ASC");
+    $history = [];
+    while ($row = $load->fetch_assoc()) {
+        $history[] = $row;
+    }
+
+    $conn->send(json_encode([
+        "type" => "history",
+        "messages" => $history
+    ]));
+
+    } 
+
+    public function onMessage(ConnectionInterface $from, $msg) {
+ $data = json_decode($msg, true);
+       $push = $this->db->prepare("INSERT INTO chat_test (username, message) VALUES (?, ?)");
+       $push->bind_param("ss", $data["username"], $data["message"]);
+       $push->execute();
+       $newMessage = [
+       "type"=> "text",
+       "username" => $data["username"],
+       "message" => $data["message"],
+       "created_at" => date("Y-m-d H:i:s")
+      ];
+        foreach ($this->clients as $client) {
+            $client->send(json_encode($newMessage));
+        }
+    }
+
+
+    
+
+    public function onClose(ConnectionInterface $conn) {
+
+        $this->clients->detach($conn);
+
+        echo "Connection {$conn->resourceId} has disconnected\n";
+
+    }
+
+    public function onError(ConnectionInterface $conn, \Exception $e) {
+        echo "An error has occurred: {$e->getMessage()}\n";
+        $conn->close();
+    }
   }
-  echo json_encode($data);
-} else {
-  echo json_encode([]);
-}
 
-$conn->close();
-
+$server = \Ratchet\Server\IoServer::factory(
+    new \Ratchet\Http\HttpServer(
+        new \Ratchet\WebSocket\WsServer(
+            new ChatServer()
+        )
+    ),
+    8080 
+);
+$server->run();
 ?>
