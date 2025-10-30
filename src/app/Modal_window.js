@@ -1,67 +1,44 @@
 'use client'
-
 import React, { useEffect, useState } from "react";
+import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, useDisclosure, Input, useDraggable } from "@heroui/react";
 
-
-import {Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, useDisclosure, Checkbox, Input, Link, useDraggable} from "@heroui/react";
-
-
-
-
-export default function Modal_window() {
-  const {isOpen, onOpen, onOpenChange} = useDisclosure();
+export default function Modal_window({ username, setUsername }) {
+  const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const targetRef = React.useRef(null);
-  const {moveProps} = useDraggable({targetRef, isDisabled: !isOpen});
-  const [username, setUsername] = useState();
-  const [get_request, setget_request] = useState([]);
+  const { moveProps } = useDraggable({ targetRef, isDisabled: !isOpen });
 
-    useEffect(() => {
+  useEffect(() => {
     onOpen();
   }, [onOpen]);
 
-function handleSignIn() {
-  console.log("Введённое имя:", username);
-}
+  function handleSignIn() {
+    console.log("Введённое имя:", username);
+    onOpenChange(false); 
+  }
 
-
-
-
- return (
-    <>
-    
-    <div className=" flex justify-center bg-black relative" >
-      {/* <Button color="primary" onPress={onOpen}>
-        Open Modal
-      </Button> */}
+  return (
+    <div className="flex justify-center bg-black relative">
       <Modal ref={targetRef} isOpen={isOpen} placement="top-center" onOpenChange={onOpenChange}>
         <ModalContent>
-          {(onClose) => (
-            <>
-              <ModalHeader {...moveProps} className="flex flex-col  gap-1">Log in</ModalHeader>
-              <ModalBody>
-                <Input
-                  label="Username"
-                  placeholder="Enter your username"
-                  variant="bordered"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)} 
-                />
-               
-     
-              </ModalBody>
-              <ModalFooter>
-                <Button color="primary" onPress={onClose}>
-                  Sign in
-                </Button>
-              </ModalFooter>
-            </>
-          )}
+          <>
+            <ModalHeader {...moveProps} className="flex flex-col gap-1">Log in</ModalHeader>
+            <ModalBody>
+              <Input
+                label="Username"
+                placeholder="Enter your username"
+                variant="bordered"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
+            </ModalBody>
+            <ModalFooter>
+              <Button color="primary" onPress={handleSignIn}>
+                Sign in
+              </Button>
+            </ModalFooter>
+          </>
         </ModalContent>
       </Modal>
-      <Button color="primary" onPress={handleSignIn}> </Button>
-      
-      
-      </div>
-    </>
+    </div>
   );
 }
